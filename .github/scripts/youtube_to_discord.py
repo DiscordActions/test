@@ -418,12 +418,21 @@ def fetch_and_post_videos(youtube):
     logging.info(f"YOUTUBE_DETAILVIEW 설정: {YOUTUBE_DETAILVIEW}")
     logging.info(f"YOUTUBE_PLAYLIST_SORT 설정: {YOUTUBE_PLAYLIST_SORT}")
 
+    # 데이터베이스 파일이 존재하지 않으면 초기화
     if not os.path.exists(DB_PATH):
         init_db()
-
+    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT video_id FROM videos")
+
+    # 테이블이 존재하지 않을 때 테이블을 초기화하는 로직 추가
+    try:
+        c.execute("SELECT video_id FROM videos")
+    except sqlite3.OperationalError:
+        logging.info("테이블이 존재하지 않습니다. 테이블을 초기화합니다.")
+        init_db()
+        c.execute("SELECT video_id FROM videos")
+
     existing_video_ids = set(row[0] for row in c.fetchall())
     conn.close()
 
