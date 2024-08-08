@@ -63,22 +63,17 @@ jobs:
     - name: Notify Discord of New YouTube Videos
       env:
         YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        YOUTUBE_MODE: ${{ secrets.YOUTUBE_MODE }}
         YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
-        YOUTUBE_PLAYLIST_ID: ${{ secrets.YOUTUBE_PLAYLIST_ID }}
-        YOUTUBE_SEARCH_KEYWORD: ${{ secrets.YOUTUBE_SEARCH_KEYWORD }}
-        YOUTUBE_INIT_MAX_RESULTS: ${{ secrets.YOUTUBE_INIT_MAX_RESULTS }}
-        YOUTUBE_MAX_RESULTS: ${{ secrets.YOUTUBE_MAX_RESULTS }}
+        INIT_MAX_RESULTS: ${{ secrets.YOUTUBE_INIT_MAX_RESULTS }}
+        MAX_RESULTS: ${{ secrets.YOUTUBE_MAX_RESULTS }}
         IS_FIRST_RUN: ${{ steps.get_latest_run.outputs.result == '' }}
         INITIALIZE_MODE_YOUTUBE: ${{ env.INITIALIZE_MODE_YOUTUBE }}
         ADVANCED_FILTER_YOUTUBE: ${{ secrets.ADVANCED_FILTER_YOUTUBE }}
         DATE_FILTER_YOUTUBE: ${{ secrets.DATE_FILTER_YOUTUBE }}
         LANGUAGE_YOUTUBE: ${{ secrets.LANGUAGE_YOUTUBE }}
         DISCORD_WEBHOOK_YOUTUBE: ${{ secrets.DISCORD_WEBHOOK_YOUTUBE }}
-        DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW: ${{ secrets.DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW }}
         DISCORD_AVATAR_YOUTUBE: ${{ secrets.DISCORD_AVATAR_YOUTUBE }}
         DISCORD_USERNAME_YOUTUBE: ${{ secrets.DISCORD_USERNAME_YOUTUBE }}
-        YOUTUBE_DETAILVIEW: ${{ secrets.YOUTUBE_DETAILVIEW }}
       run: |
         python .github/scripts/youtube_to_discord.py
 
