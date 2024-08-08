@@ -1,3 +1,4 @@
+
 import os
 import requests
 import html
@@ -18,7 +19,6 @@ YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 YOUTUBE_MODE = os.getenv('YOUTUBE_MODE', 'channels').lower()
 YOUTUBE_CHANNEL_ID = os.getenv('YOUTUBE_CHANNEL_ID')
 YOUTUBE_PLAYLIST_ID = os.getenv('YOUTUBE_PLAYLIST_ID')
-YOUTUBE_PLAYLIST_SORT = os.getenv('YOUTUBE_PLAYLIST_SORT', 'default').lower()
 YOUTUBE_SEARCH_KEYWORD = os.getenv('YOUTUBE_SEARCH_KEYWORD')
 INIT_MAX_RESULTS = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '100')
 MAX_RESULTS = int(os.getenv('YOUTUBE_MAX_RESULTS') or '10')
@@ -373,18 +373,6 @@ def fetch_videos(youtube, mode, channel_id, playlist_id, search_keyword):
         if not IS_FIRST_RUN and not INITIALIZE_MODE_YOUTUBE:
             playlist_items = playlist_items[:MAX_RESULTS]
         
-        # 항상 position으로 정렬
-        playlist_items.sort(key=lambda x: x['snippet']['position'])
-        
-        # 정렬 옵션 적용
-        if YOUTUBE_PLAYLIST_SORT == 'reverse':
-            playlist_items.reverse()
-        elif YOUTUBE_PLAYLIST_SORT == 'date_newest':
-            playlist_items.sort(key=lambda x: x['snippet']['publishedAt'], reverse=True)
-        elif YOUTUBE_PLAYLIST_SORT == 'date_oldest':
-            playlist_items.sort(key=lambda x: x['snippet']['publishedAt'])
-        # 'default'인 경우 이미 position으로 정렬되어 있으므로 추가 작업 불필요
-        
         return [(item['snippet']['resourceId']['videoId'], item['snippet']) for item in playlist_items]
     elif mode == 'search':
         response = youtube.search().list(
@@ -416,23 +404,13 @@ def fetch_video_details(youtube, video_ids):
 def fetch_and_post_videos(youtube):
     logging.info(f"fetch_and_post_videos 함수 시작")
     logging.info(f"YOUTUBE_DETAILVIEW 설정: {YOUTUBE_DETAILVIEW}")
-    logging.info(f"YOUTUBE_PLAYLIST_SORT 설정: {YOUTUBE_PLAYLIST_SORT}")
 
-    # 데이터베이스 파일이 존재하지 않으면 초기화
     if not os.path.exists(DB_PATH):
         init_db()
-    
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-
-    # 테이블이 존재하지 않을 때 테이블을 초기화하는 로직 추가
-    try:
-        c.execute("SELECT video_id FROM videos")
-    except sqlite3.OperationalError:
-        logging.info("테이블이 존재하지 않습니다. 테이블을 초기화합니다.")
-        init_db()
-        c.execute("SELECT video_id FROM videos")
-
+    c.execute("SELECT video_id FROM videos")
     existing_video_ids = set(row[0] for row in c.fetchall())
     conn.close()
 
@@ -443,26 +421,18 @@ def fetch_and_post_videos(youtube):
 
     video_details = fetch_video_details(youtube, video_ids)
 
-    # 비디오 세부 정보를 딕셔너리로 변환
-    video_details_dict = {video['id']: video for video in video_details}
-
     new_videos = []
 
     playlist_info = None
     if YOUTUBE_MODE == 'playlists':
         playlist_info = fetch_playlist_info(youtube, YOUTUBE_PLAYLIST_ID)
 
-    # videos 리스트의 순서를 유지하면서 처리
-    for video_id, snippet in videos:
-        if video_id not in video_details_dict:
-            logging.warning(f"비디오 세부 정보를 찾을 수 없음: {video_id}")
-            continue
-
-        video_detail = video_details_dict[video_id]
+    for video_detail in video_details:
         snippet = video_detail['snippet']
         content_details = video_detail['contentDetails']
         live_streaming_details = video_detail.get('liveStreamingDetails', {})
 
+        video_id = video_detail['id']
         published_at = snippet['publishedAt']
         
         if video_id in existing_video_ids:
@@ -511,6 +481,7 @@ def fetch_and_post_videos(youtube):
         
         new_videos.append(video_data)
 
+    new_videos.sort(key=lambda x: x['published_at'])
     logging.info(f"새로운 비디오 수: {len(new_videos)}")
 
     for video in new_videos:
