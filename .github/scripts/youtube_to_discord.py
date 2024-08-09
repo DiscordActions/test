@@ -913,16 +913,16 @@ def main():
         logging.info(f"API를 통해 가져온 비디오 수: {len(videos)}")
         
         existing_video_ids = get_existing_video_ids()
-        new_videos = []
-
-        for video_id, video_data in videos:
-            if video_id not in existing_video_ids:
-                full_video_data = get_full_video_data(youtube, video_id, video_data)
-                if full_video_data:
-                    new_videos.append(full_video_data)
-
-        # 오래된 순서부터 최신순으로 정렬
-        new_videos.sort(key=lambda x: x['published_at'])
+        
+        # DATE_FILTER_YOUTUBE 파싱
+        since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE)
+        
+        # 비디오 세부 정보 가져오기
+        video_ids = [video[0] for video in videos]
+        video_details = fetch_video_details(youtube, video_ids)
+        video_details_dict = {video['id']: video for video in video_details}
+        
+        new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
         
         logging.info(f"처리할 새로운 비디오 수: {len(new_videos)}")
         
