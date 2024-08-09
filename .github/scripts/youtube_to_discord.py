@@ -107,6 +107,8 @@ def init_db(reset: bool = False) -> None:
                           caption TEXT,
                           source TEXT)''')
             
+            conn.commit()
+            
             c.execute("PRAGMA integrity_check")
             integrity_result = c.fetchone()[0]
             if integrity_result != "ok":
@@ -296,7 +298,7 @@ def post_to_discord(message: str, is_embed: bool = False, is_detail: bool = Fals
         logging.info(f"Discord에 메시지 게시 완료 ({'상세' if is_detail else '기본'} 웹훅)")
         discord_message_count += 1
     except requests.RequestException as e:
-		logging.error(f"Discord에 메시지를 게시하는 데 실패했습니다: {e}")
+        logging.error(f"Discord에 메시지를 게시하는 데 실패했습니다: {e}")
         raise DiscordWebhookError("Discord 웹훅 호출 중 오류 발생")
     
     time.sleep(2)  # 추가적인 속도 제한을 위한 대기
