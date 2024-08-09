@@ -82,7 +82,6 @@ def check_env_variables() -> None:
         raise
 
 def init_db(reset: bool = False) -> None:
-    """데이터베이스를 초기화하거나 기존 데이터베이스를 사용합니다."""
     try:
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
@@ -91,21 +90,23 @@ def init_db(reset: bool = False) -> None:
                 logging.info("기존 videos 테이블 삭제됨")
             
             c.execute('''CREATE TABLE IF NOT EXISTS videos
-                         (published_at TEXT,
-                          channel_title TEXT,
+                         (video_id TEXT PRIMARY KEY,
                           channel_id TEXT,
+                          channel_title TEXT,
                           title TEXT,
-                          video_id TEXT PRIMARY KEY,
-                          video_url TEXT,
                           description TEXT,
+                          published_at TEXT,
+                          thumbnail_url TEXT,
                           category_id TEXT,
                           category_name TEXT,
                           duration TEXT,
-                          thumbnail_url TEXT,
                           tags TEXT,
                           live_broadcast_content TEXT,
                           scheduled_start_time TEXT,
                           caption TEXT,
+                          view_count INTEGER,
+                          like_count INTEGER,
+                          comment_count INTEGER,
                           source TEXT)''')
             
             conn.commit()
