@@ -849,7 +849,7 @@ def create_video_data(youtube, video_id: str, snippet: Dict[str, Any], content_d
         'source': YOUTUBE_MODE
     }
     
-    logging.info(f"Created video data: {video_data}")
+    logging.info(f"Created video data in create_video_data: {video_data}")
     return video_data
 
 def log_execution_info():
