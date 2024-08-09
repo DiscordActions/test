@@ -891,9 +891,8 @@ def main():
         
         for video in new_videos:
             save_video(video)
-            send_to_discord(create_discord_message(video, convert_to_local_time(video['published_at']), f"https://youtu.be/{video['video_id']}"))
-            if YOUTUBE_DETAILVIEW:
-                send_to_discord(create_embed_message(video, youtube), is_embed=True, is_detail=True)
+            logging.info(f"Sending to Discord: {video}")  # 여기서 video 데이터 출력
+            send_to_discord(create_embed_message(video, youtube), is_embed=True, is_detail=True)
 
         log_execution_info()
         
