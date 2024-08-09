@@ -893,8 +893,16 @@ def main():
         
         for video in new_videos:
             save_video(video)
-            logging.info(f"Sending to Discord: {video}")
-            send_to_discord(create_embed_message(video, youtube), is_embed=True, is_detail=True)
+            logging.info(f"처리 중인 비디오: {video['title']}")
+            
+            # 기본 메시지 전송
+            basic_message = create_discord_message(video, convert_to_local_time(video['published_at']), video['video_url'])
+            send_to_discord(basic_message, is_embed=False, is_detail=False)
+            
+            # YOUTUBE_DETAILVIEW가 True일 경우에만 상세 메시지 전송
+            if YOUTUBE_DETAILVIEW:
+                detailed_message = create_embed_message(video, youtube)
+                send_to_discord(detailed_message, is_embed=True, is_detail=True)
 
         log_execution_info()
         
