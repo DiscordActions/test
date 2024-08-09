@@ -274,7 +274,7 @@ def init_db(reset: bool = False) -> None:
             if reset or count == 0:
                 logging.info("새로운 데이터베이스가 초기화되었습니다.")
             else:
-				logging.info(f"기존 데이터베이스를 사용합니다. 현재 {count}개의 항목이 있습니다.")
+                logging.info(f"기존 데이터베이스를 사용합니다. 현재 {count}개의 항목이 있습니다.")
     except sqlite3.Error as e:
         logging.error(f"데이터베이스 초기화 중 오류 발생: {e}")
         raise DatabaseError("데이터베이스 초기화 실패")
