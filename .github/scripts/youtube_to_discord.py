@@ -260,16 +260,25 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
         logging.error(f"검색 결과를 가져오는 중 오류 발생: {e}")
         raise YouTubeAPIError("검색 비디오 정보 가져오기 실패")
 
-def sort_playlist_items(playlist_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    playlist_items.sort(key=lambda x: x['snippet']['position'])  # 기본값은 position으로 설정
-    
+def sort_playlist_items(playlist_items: List[Tuple[str, Dict[str, Any]]]) -> List[Tuple[str, Dict[str, Any]]]:
+    def get_published_at(item):
+        # 'publishedAt' 키가 없을 경우 'snippet'의 'publishedAt'을 사용
+        return item[1].get('publishedAt') or item[1]['snippet'].get('publishedAt') or ''
+
     if YOUTUBE_PLAYLIST_SORT == 'reverse':
-        playlist_items.reverse()
+        return list(reversed(playlist_items))
     elif YOUTUBE_PLAYLIST_SORT == 'date_newest':
-        playlist_items.sort(key=lambda x: x['snippet']['publishedAt'], reverse=True)
+        return sorted(playlist_items, key=get_published_at, reverse=True)
     elif YOUTUBE_PLAYLIST_SORT == 'date_oldest':
-        playlist_items.sort(key=lambda x: x['snippet']['publishedAt'])
-    
+        return sorted(playlist_items, key=get_published_at)
+    elif YOUTUBE_PLAYLIST_SORT == 'position':
+        # 'position' 키를 사용하여 정렬
+        return sorted(playlist_items, key=lambda x: int(x[1]['snippet'].get('position', 0)))
+    else:
+        return playlist_items  # default order
+
+    # 정렬 후 로깅 추가
+    logging.info(f"재생목록 정렬 완료: {YOUTUBE_PLAYLIST_SORT} 모드, {len(playlist_items)}개 항목")
     return playlist_items
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry=retry_if_exception_type(HttpError))
@@ -566,7 +575,7 @@ def create_korean_message(video: Dict[str, Any], formatted_published_at: str, vi
     
     if video['scheduled_start_time']:
         formatted_start_time = convert_to_local_time(video['scheduled_start_time'])
-        message += f"\n\n🔴 예정된 라이브 시작 시간: `{formatted_start_time}`"
+        message += f"\n\n🔴 예정된 라이브 시작 시간: \n`{formatted_start_time}`"
     
     return message
 
@@ -585,7 +594,7 @@ def create_english_message(video: Dict[str, Any], formatted_published_at: str, v
     
     if video['scheduled_start_time']:
         formatted_start_time = convert_to_local_time(video['scheduled_start_time'])
-        message += f"\n\n🔴 Scheduled Live Start Time: `{formatted_start_time}`"
+        message += f"\n\n🔴 Scheduled Live Start Time: \n`{formatted_start_time}`"
     
     return message
 
