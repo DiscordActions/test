@@ -69,14 +69,16 @@ def check_env_variables() -> None:
 
         if mode == 'channels' and not os.getenv('YOUTUBE_CHANNEL_ID'):
             raise ValueError("YOUTUBE_MODE가 'channels'일 때 YOUTUBE_CHANNEL_ID가 필요합니다.")
-        elif mode == 'playlists' and not os.getenv('YOUTUBE_PLAYLIST_ID'):
-            raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
+        elif mode == 'playlists':
+            if not os.getenv('YOUTUBE_PLAYLIST_ID'):
+                raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
+            
+            playlist_sort = os.getenv('YOUTUBE_PLAYLIST_SORT', 'default').lower()
+            if playlist_sort not in ['default', 'reverse', 'date_newest', 'date_oldest', 'position']:
+                raise ValueError("YOUTUBE_PLAYLIST_SORT는 'default', 'reverse', 'date_newest', 'date_oldest', 'position' 중 하나여야 합니다.")
+        
         elif mode == 'search' and not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
             raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
-
-        playlist_sort = os.getenv('YOUTUBE_PLAYLIST_SORT', 'default').lower()
-        if playlist_sort not in ['default', 'reverse', 'date_newest', 'date_oldest', 'position']:
-            raise ValueError("YOUTUBE_PLAYLIST_SORT는 'default', 'reverse', 'date_newest', 'date_oldest', 'position' 중 하나여야 합니다.")
 
         for var in ['YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS']:
             value = os.getenv(var)
@@ -105,7 +107,7 @@ def check_env_variables() -> None:
     except Exception as e:
         logging.error(f"예상치 못한 오류 발생: {e}")
         raise
-
+	    
 def parse_duration(duration: str) -> str:
     """영상 길이를 파싱합니다."""
     parsed_duration = isodate.parse_duration(duration)
