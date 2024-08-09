@@ -1,10 +1,12 @@
 import os
 import re
+import sys
 import logging
 import sqlite3
 from typing import List, Dict, Any, Tuple, Set
 from datetime import datetime, timezone, timedelta
 import time
+
 
 import requests
 import isodate
@@ -269,6 +271,56 @@ def sort_playlist_items(playlist_items: List[Dict[str, Any]]) -> List[Dict[str, 
         playlist_items.sort(key=lambda x: x['snippet']['publishedAt'])
     
     return playlist_items
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry=retry_if_exception_type(HttpError))
+def get_full_video_data(youtube, video_id: str, basic_info: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        video_response = youtube.videos().list(
+            part="snippet,contentDetails,statistics,liveStreamingDetails",
+            id=video_id
+        ).execute()
+        
+        if not video_response.get('items'):
+            logging.warning(f"비디오 정보를 찾을 수 없음: {video_id}")
+            return None
+        
+        video_info = video_response['items'][0]
+        content_details = video_info.get('contentDetails', {})
+        statistics = video_info.get('statistics', {})
+        live_streaming_details = video_info.get('liveStreamingDetails', {})
+        
+        return {
+            'video_id': video_id,
+            'channel_id': basic_info['channelId'],
+            'channel_title': basic_info['channelTitle'],
+            'title': basic_info['title'],
+            'description': basic_info['description'],
+            'published_at': basic_info['publishedAt'],
+            'thumbnail_url': basic_info['thumbnails']['high']['url'],
+            'category_id': video_info['snippet'].get('categoryId', 'Unknown'),
+            'category_name': get_category_name(youtube, video_info['snippet'].get('categoryId', 'Unknown')),
+            'duration': parse_duration(content_details.get('duration', 'PT0S')),
+            'tags': ','.join(video_info['snippet'].get('tags', [])),
+            'live_broadcast_content': video_info['snippet'].get('liveBroadcastContent', ''),
+            'scheduled_start_time': live_streaming_details.get('scheduledStartTime', ''),
+            'caption': content_details.get('caption', 'false'),
+            'view_count': int(statistics.get('viewCount', 0)),
+            'like_count': int(statistics.get('likeCount', 0)),
+            'comment_count': int(statistics.get('commentCount', 0)),
+            'source': YOUTUBE_MODE
+        }
+    except HttpError as e:
+        if e.resp.status == 403 and 'quotaExceeded' in str(e):
+            logging.error("YouTube API 할당량 초과. 잠시 후 다시 시도하세요.")
+            raise YouTubeAPIError("YouTube API 할당량 초과")
+        logging.error(f"비디오 세부 정보를 가져오는 중 오류 발생: {e}")
+        raise YouTubeAPIError("비디오 세부 정보 가져오기 실패")
+
+def get_existing_video_ids() -> Set[str]:
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute("SELECT video_id FROM videos")
+        return set(row[0] for row in c.fetchall())
 
 def get_channel_thumbnail(youtube, channel_id: str) -> str:
     """채널 썸네일을 가져옵니다."""
@@ -766,11 +818,11 @@ def main():
         
         logging.info(f"처리할 새로운 비디오 수: {len(new_videos)}")
         
-        for video in new_videos:
-            save_video(video)
-            send_to_discord(video)
-            if YOUTUBE_DETAILVIEW:
-                send_detailed_view(video, youtube)
+	for video in new_videos:
+	    save_video(video)
+	    send_to_discord(create_discord_message(video, convert_to_local_time(video['published_at']), f"https://youtu.be/{video['video_id']}"))
+	    if YOUTUBE_DETAILVIEW:
+	        send_to_discord(create_embed_message(video, youtube), is_embed=True, is_detail=True)
 
         log_execution_info()
         
