@@ -21,7 +21,7 @@ YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 YOUTUBE_MODE = os.getenv('YOUTUBE_MODE', 'channels').lower()
 YOUTUBE_CHANNEL_ID = os.getenv('YOUTUBE_CHANNEL_ID')
 YOUTUBE_PLAYLIST_ID = os.getenv('YOUTUBE_PLAYLIST_ID')
-YOUTUBE_PLAYLIST_SORT = os.getenv('YOUTUBE_PLAYLIST_SORT', 'default').lower()
+YOUTUBE_PLAYLIST_SORT = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
 YOUTUBE_SEARCH_KEYWORD = os.getenv('YOUTUBE_SEARCH_KEYWORD')
 INIT_MAX_RESULTS = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '50')
 MAX_RESULTS = int(os.getenv('YOUTUBE_MAX_RESULTS') or '10')
@@ -73,10 +73,10 @@ def check_env_variables() -> None:
             if not os.getenv('YOUTUBE_PLAYLIST_ID'):
                 raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
             
-            playlist_sort = os.getenv('YOUTUBE_PLAYLIST_SORT', 'default').lower()
-            if playlist_sort not in ['default', 'reverse', 'date_newest', 'date_oldest', 'position']:
-                raise ValueError("YOUTUBE_PLAYLIST_SORT는 'default', 'reverse', 'date_newest', 'date_oldest', 'position' 중 하나여야 합니다.")
-        
+            playlist_sort = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
+            if playlist_sort not in ['position', 'position_reverse', 'date_newest', 'date_oldest']:
+                raise ValueError("YOUTUBE_PLAYLIST_SORT는 'position', 'position_reverse', 'date_newest', 'date_oldest' 중 하나여야 합니다.")
+		            
         elif mode == 'search' and not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
             raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
 
@@ -368,7 +368,7 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
     next_page_token = None
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
     api_calls = 0
-    max_api_calls = 3  # 최대 API 호출 횟수 제한
+    max_api_calls = 3
 
     logging.info(f"채널 ID: {channel_id}에서 최대 {max_results}개의 비디오를 가져오기 시작")
 
@@ -388,7 +388,6 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
                 published_at = item['contentDetails']['videoPublishedAt']
                 status = item['status']['privacyStatus']
 
-                # 비공개 동영상 건너뛰기
                 if status == 'private':
                     continue
 
@@ -401,9 +400,6 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
                     'publishedAt': published_at
                 }))
 
-                if len(video_items) >= max_results:
-                    break
-
             next_page_token = response.get('nextPageToken')
             if not next_page_token:
                 break
@@ -414,10 +410,13 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
             logging.error(f"채널 비디오 정보를 가져오는 중 오류 발생: {e}")
             raise YouTubeAPIError("채널 비디오 정보 가져오기 실패")
 
+    # 오래된 영상부터 정렬
+    video_items.sort(key=lambda x: x[1]['publishedAt'])
+
     logging.info(f"총 {len(video_items)}개의 비디오를 가져왔습니다.")
     
     return video_items
-
+	
 def fetch_playlist_videos(youtube, playlist_id: str) -> Tuple[List[Tuple[str, Dict[str, Any]]], Dict[str, str]]:
     playlist_items = []
     next_page_token = None
@@ -512,20 +511,21 @@ def sort_playlist_items(playlist_items: List[Tuple[str, Dict[str, Any]]]) -> Lis
     def get_published_at(item):
         return item[1].get('publishedAt') or item[1]['snippet'].get('publishedAt') or ''
 
-    if YOUTUBE_PLAYLIST_SORT == 'reverse':
-        return list(reversed(playlist_items))
+    def get_position(item):
+        return int(item[1]['snippet'].get('position', 0))
+
+    if YOUTUBE_PLAYLIST_SORT == 'position_reverse':
+        return sorted(playlist_items, key=get_position, reverse=True)
     elif YOUTUBE_PLAYLIST_SORT == 'date_newest':
         return sorted(playlist_items, key=get_published_at, reverse=True)
     elif YOUTUBE_PLAYLIST_SORT == 'date_oldest':
         return sorted(playlist_items, key=get_published_at)
-    elif YOUTUBE_PLAYLIST_SORT == 'position':
-        return sorted(playlist_items, key=lambda x: int(x[1]['snippet'].get('position', 0)))
-    else:
-        return playlist_items  # default order
+    else:  # 'position' (default)
+        return sorted(playlist_items, key=get_position)
 
     logging.info(f"재생목록 정렬 완료: {YOUTUBE_PLAYLIST_SORT} 모드, {len(playlist_items)}개 항목")
     return playlist_items
-
+	
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry=retry_if_exception_type(HttpError))
 def get_full_video_data(youtube, video_id: str, basic_info: Dict[str, Any]) -> Dict[str, Any]:
     try:
