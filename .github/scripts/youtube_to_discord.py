@@ -90,9 +90,11 @@ def check_env_variables() -> None:
             if value and value not in ['true', 'false']:
                 raise ValueError(f"{var}는 'true' 또는 'false'여야 합니다.")
 
+        # LANGUAGE_YOUTUBE 기본값 설정 및 검증
         language = os.getenv('LANGUAGE_YOUTUBE', 'English')
         if language not in ['English', 'Korean']:
-            raise ValueError("LANGUAGE_YOUTUBE는 'English' 또는 'Korean'이어야 합니다.")
+            logging.warning(f"LANGUAGE_YOUTUBE 환경 변수 '{language}'는 올바르지 않음. 기본값 'English'로 설정.")
+            language = 'English'
 
         logging.info("환경 변수 검증 완료")
         
@@ -740,8 +742,8 @@ def create_korean_message(video: Dict[str, Any], formatted_published_at: str, vi
         f"**{video['title']}**\n"
         f"{video_url}\n\n"
         f"📁 카테고리: `{video['category_name']}`\n"
-        f"⌛️ 영상 길이: `{video['duration']}`\n"
-        f"📅 게시일: `{formatted_published_at}`\n"
+        f"⌛️ 영상길이: `{video['duration']}`\n"
+        f"📅 영상날짜: `{formatted_published_at}`\n"
         f"🖼️ [썸네일](<{video['thumbnail_url']}>)"
     )
     
