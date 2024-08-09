@@ -158,40 +158,61 @@ def fetch_videos(youtube, mode: str, channel_id: str, playlist_id: str, search_k
         raise ValueError("잘못된 모드입니다.")
 
 def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, Any]]]:
+    uploads_playlist_id = f"UU{channel_id[2:]}"
     video_items = []
     next_page_token = None
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+    api_calls = 0
+    max_api_calls = 3  # 최대 API 호출 횟수 제한
 
     logging.info(f"채널 ID: {channel_id}에서 최대 {max_results}개의 비디오를 가져오기 시작")
 
-    while len(video_items) < max_results:
+    while len(video_items) < max_results and api_calls < max_api_calls:
         try:
-            response = youtube.search().list(
-                channelId=channel_id,
-                type='video',
-                part='snippet,id',
-                order='date',
+            response = youtube.playlistItems().list(
+                part="snippet,contentDetails,status",
+                playlistId=uploads_playlist_id,
                 maxResults=min(50, max_results - len(video_items)),
-                pageToken=next_page_token
+                pageToken=next_page_token,
+                fields="items(snippet(channelId,channelTitle,title,description,thumbnails),contentDetails(videoId,videoPublishedAt),status),nextPageToken"
             ).execute()
 
-            new_items = [(item['id']['videoId'], item['snippet']) for item in response.get('items', [])]
-            video_items.extend(new_items)
+            for item in response.get('items', []):
+                video_id = item['contentDetails']['videoId']
+                snippet = item['snippet']
+                published_at = item['contentDetails']['videoPublishedAt']
+                status = item['status']['privacyStatus']
+
+                # 비공개 동영상 건너뛰기
+                if status == 'private':
+                    continue
+
+                video_items.append((video_id, {
+                    'channelId': snippet['channelId'],
+                    'channelTitle': snippet['channelTitle'],
+                    'title': snippet['title'],
+                    'description': snippet['description'],
+                    'thumbnails': snippet['thumbnails'],
+                    'publishedAt': published_at
+                }))
+
+                if len(video_items) >= max_results:
+                    break
 
             next_page_token = response.get('nextPageToken')
             if not next_page_token:
                 break
+
+            api_calls += 1
+
         except HttpError as e:
-            logging.error(f"비디오 정보를 가져오는 중 오류 발생: {e}")
+            logging.error(f"채널 비디오 정보를 가져오는 중 오류 발생: {e}")
             raise YouTubeAPIError("채널 비디오 정보 가져오기 실패")
 
-    video_items = video_items[:max_results]
-    
-    # 오래된 순서로 정렬
-    video_items.sort(key=lambda x: x[1]['publishedAt'])
+    logging.info(f"총 {len(video_items)}개의 비디오를 가져왔습니다.")
     
     return video_items
-
+	
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     playlist_items = []
     next_page_token = None
@@ -725,32 +746,31 @@ def main():
         check_env_variables()
         initialize_database_if_needed()
         youtube = build_youtube_client()
-        playlist_info = fetch_playlist_info(youtube, YOUTUBE_PLAYLIST_ID) if YOUTUBE_MODE == 'playlists' else None
         
         logging.info("YouTube API를 통해 비디오 정보 가져오기 시작")
         videos = fetch_videos(youtube, YOUTUBE_MODE, YOUTUBE_CHANNEL_ID, YOUTUBE_PLAYLIST_ID, YOUTUBE_SEARCH_KEYWORD)
         
         logging.info(f"API를 통해 가져온 비디오 수: {len(videos)}")
         
-        video_ids = [video[0] for video in videos]
-        video_details_dict = {video['id']: video for video in fetch_video_details(youtube, video_ids)}
-        
-        logging.info("기존 비디오 ID 가져오기")
         existing_video_ids = get_existing_video_ids()
-        
-        logging.info("날짜 필터 파싱")
-        since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE) if DATE_FILTER_YOUTUBE else (None, None, None)
-        
-        logging.info("새 비디오 처리 시작")
-        new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
-        
+        new_videos = []
+
+        for video_id, video_data in videos:
+            if video_id not in existing_video_ids:
+                full_video_data = get_full_video_data(youtube, video_id, video_data)
+                if full_video_data:
+                    new_videos.append(full_video_data)
+
         # 오래된 순서부터 최신순으로 정렬
-        new_videos.sort(key=lambda x: x['published_at'])
+        new_videos.sort(key=lambda x: x['publishedAt'])
         
         logging.info(f"처리할 새로운 비디오 수: {len(new_videos)}")
         
         for video in new_videos:
-            process_video(video, youtube, playlist_info)
+            save_video(video)
+            send_to_discord(video)
+            if YOUTUBE_DETAILVIEW:
+                send_detailed_view(video, youtube)
 
         log_execution_info()
         
