@@ -291,6 +291,7 @@ def get_full_video_data(youtube, video_id: str, basic_info: Dict[str, Any]) -> D
         
         return {
             'video_id': video_id,
+            'video_url': f"https://youtu.be/{video_id}",
             'channel_id': basic_info['channelId'],
             'channel_title': basic_info['channelTitle'],
             'title': basic_info['title'],
