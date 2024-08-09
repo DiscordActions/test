@@ -55,30 +55,62 @@ discord_message_reset_time = time.time()
 def check_env_variables() -> None:
     """환경 변수가 올바르게 설정되어 있는지 확인합니다."""
     try:
-        base_required_vars = ['YOUTUBE_API_KEY', 'YOUTUBE_MODE', 'DISCORD_WEBHOOK_YOUTUBE']
-        mode_specific_required_vars = {
-            'channels': ['YOUTUBE_CHANNEL_ID'],
-            'playlists': ['YOUTUBE_PLAYLIST_ID', 'YOUTUBE_PLAYLIST_SORT'],
-            'search': ['YOUTUBE_SEARCH_KEYWORD']
-        }
+        # 필수 변수 목록
+        required_vars = ['YOUTUBE_API_KEY', 'YOUTUBE_MODE', 'DISCORD_WEBHOOK_YOUTUBE']
         
+        # 변수 검증
+        for var in required_vars:
+            if not os.getenv(var):
+                raise ValueError(f"필수 환경 변수 '{var}'가 설정되지 않았습니다.")
+
+        # YOUTUBE_MODE 검증
         mode = os.getenv('YOUTUBE_MODE', '').lower()
-        if mode not in mode_specific_required_vars:
+        if mode not in ['channels', 'playlists', 'search']:
             raise ValueError("YOUTUBE_MODE는 'channels', 'playlists', 'search' 중 하나여야 합니다.")
+
+        # 모드별 추가 필수 변수 검증
+        if mode == 'channels' and not os.getenv('YOUTUBE_CHANNEL_ID'):
+            raise ValueError("YOUTUBE_MODE가 'channels'일 때 YOUTUBE_CHANNEL_ID가 필요합니다.")
+        elif mode == 'playlists' and not os.getenv('YOUTUBE_PLAYLIST_ID'):
+            raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
+        elif mode == 'search' and not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
+            raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
+
+        # YOUTUBE_PLAYLIST_SORT 검증
+        playlist_sort = os.getenv('YOUTUBE_PLAYLIST_SORT', 'default').lower()
+        if playlist_sort not in ['default', 'reverse', 'date_newest', 'date_oldest', 'position']:
+            raise ValueError("YOUTUBE_PLAYLIST_SORT는 'default', 'reverse', 'date_newest', 'date_oldest', 'position' 중 하나여야 합니다.")
+
+        # 숫자 값 검증
+        for var in ['YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS']:
+            value = os.getenv(var)
+            if value and not value.isdigit():
+                raise ValueError(f"{var}는 숫자여야 합니다.")
+
+        # 불리언 값 검증
+        for var in ['INITIALIZE_MODE_YOUTUBE', 'YOUTUBE_DETAILVIEW']:
+            value = os.getenv(var, '').lower()
+            if value and value not in ['true', 'false']:
+                raise ValueError(f"{var}는 'true' 또는 'false'여야 합니다.")
+
+        # LANGUAGE_YOUTUBE 검증
+        language = os.getenv('LANGUAGE_YOUTUBE', 'English')
+        if language not in ['English', 'Korean']:
+            raise ValueError("LANGUAGE_YOUTUBE는 'English' 또는 'Korean'이어야 합니다.")
+
+        logging.info("환경 변수 검증 완료")
         
-        required_vars = base_required_vars + mode_specific_required_vars[mode]
-        missing_vars = [var for var in required_vars if not os.getenv(var)]
-        if missing_vars:
-            raise ValueError(f"다음 환경 변수가 설정되지 않았습니다: {', '.join(missing_vars)}")
-        
-        if mode == 'playlists':
-            playlist_sort = os.getenv('YOUTUBE_PLAYLIST_SORT', '').lower()
-            if playlist_sort not in ['default', 'reverse', 'date_newest', 'date_oldest']:
-                raise ValueError("YOUTUBE_PLAYLIST_SORT는 'default', 'reverse', 'date_newest', 'date_oldest' 중 하나여야 합니다.")
-        
-        logging.info(f"환경 변수 검증 완료: {', '.join(required_vars)}")
-    except Exception as e:
+        # 설정된 값 로깅 (민감한 정보는 제외)
+        safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
+                     'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW']
+        for var in safe_vars:
+            logging.info(f"{var}: {os.getenv(var)}")
+
+    except ValueError as e:
         logging.error(f"환경 변수 검증 중 오류 발생: {e}")
+        raise
+    except Exception as e:
+        logging.error(f"예상치 못한 오류 발생: {e}")
         raise
 
 def init_db(reset: bool = False) -> None:
