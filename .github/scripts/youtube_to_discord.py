@@ -419,7 +419,6 @@ def parse_duration(duration: str) -> str:
             return f"{seconds}s"
 
 def convert_to_local_time(published_at: str) -> str:
-    """게시 시간을 현지 시간으로 변환합니다."""
     utc_time = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ")
     utc_time = utc_time.replace(tzinfo=timezone.utc)
     
@@ -429,7 +428,7 @@ def convert_to_local_time(published_at: str) -> str:
         return kst_time.strftime("%Y년 %m월 %d일 %H시 %M분")
     else:
         local_time = utc_time.astimezone()
-        return local_time.strftime("%Y-%m-%d %H:%M:%S")        
+        return local_time.strftime("%Y-%m-%d %H:%M:%S") 
 
 def apply_advanced_filter(title: str, advanced_filter: str) -> bool:
     """고급 필터를 적용하여 제목을 필터링합니다."""
@@ -596,7 +595,7 @@ def get_source_text_korean(video: Dict[str, Any], playlist_info: Dict[str, str] 
         if playlist_info:
             return f"`📃 {playlist_info['title']} - YouTube 재생목록 by {playlist_info['channel_title']}`\n\n`{video['channel_title']} - YouTube`\n"
         else:
-            return f"`📃 YouTube 재생목록`\n`{video['channel_title']} - YouTube`\n"
+            return f"`{video['channel_title']} - YouTube`\n"
     elif YOUTUBE_MODE == 'search':
         return f"`🔎 {YOUTUBE_SEARCH_KEYWORD} - YouTube 검색 결과`\n\n`{video['channel_title']} - YouTube`\n\n"
     else:
@@ -610,7 +609,7 @@ def get_source_text_english(video: Dict[str, Any], playlist_info: Dict[str, str]
         if playlist_info:
             return f"`📃 {playlist_info['title']} - YouTube Playlist by {playlist_info['channel_title']}`\n\n`{video['channel_title']} - YouTube`\n"
         else:
-            return f"`📃 YouTube Playlist`\n`{video['channel_title']} - YouTube`\n"
+            return f"`{video['channel_title']} - YouTube`\n"
     elif YOUTUBE_MODE == 'search':
         return f"`🔎 {YOUTUBE_SEARCH_KEYWORD} - YouTube Search Result`\n\n`{video['channel_title']} - YouTube`\n\n"
     else:
@@ -634,6 +633,48 @@ def fetch_playlist_info(youtube, playlist_id: str) -> Dict[str, str]:
         logging.error(f"재생목록 정보를 가져오는 데 실패했습니다: {e}")
     
     return None
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry=retry_if_exception_type(requests.RequestException))
+def send_to_discord(message: str, is_embed: bool = False, is_detail: bool = False) -> None:
+    global discord_message_count, discord_message_reset_time
+
+    # 디스코드 API 제한 확인 및 대기
+    current_time = time.time()
+    if current_time - discord_message_reset_time >= 60:
+        discord_message_count = 0
+        discord_message_reset_time = current_time
+    
+    if discord_message_count >= 30:
+        wait_time = 60 - (current_time - discord_message_reset_time)
+        if wait_time > 0:
+            logging.info(f"디스코드 API 제한에 도달했습니다. {wait_time:.2f}초 대기 중...")
+            time.sleep(wait_time)
+            discord_message_count = 0
+            discord_message_reset_time = time.time()
+
+    headers = {'Content-Type': 'application/json'}
+    
+    if is_embed:
+        payload = message
+    else:
+        payload = {"content": message}
+        if DISCORD_AVATAR_YOUTUBE:
+            payload["avatar_url"] = DISCORD_AVATAR_YOUTUBE
+        if DISCORD_USERNAME_YOUTUBE:
+            payload["username"] = DISCORD_USERNAME_YOUTUBE
+    
+    webhook_url = DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW if is_detail and DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW else DISCORD_WEBHOOK_YOUTUBE
+    
+    try:
+        response = requests.post(webhook_url, json=payload, headers=headers)
+        response.raise_for_status()
+        logging.info(f"Discord에 메시지 게시 완료 ({'상세' if is_detail else '기본'} 웹훅)")
+        discord_message_count += 1
+    except requests.RequestException as e:
+        logging.error(f"Discord에 메시지를 게시하는 데 실패했습니다: {e}")
+        raise DiscordWebhookError("Discord 웹훅 호출 중 오류 발생")
+    
+    time.sleep(2)  # 추가적인 속도 제한을 위한 대기
 
 def post_detailed_view(video: Dict[str, Any], youtube) -> None:
     logging.info(f"YOUTUBE_DETAILVIEW가 True입니다. 임베드 메시지 생성 및 전송 시도")
