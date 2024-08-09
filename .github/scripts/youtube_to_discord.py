@@ -879,10 +879,9 @@ def main():
         existing_video_ids = get_existing_video_ids()
         new_videos = []
 
-        for video in videos:
-            video_id = video['id'] if isinstance(video['id'], str) else video['id']['videoId']
+        for video_id, video_data in videos:
             if video_id not in existing_video_ids:
-                full_video_data = get_full_video_data(youtube, video_id, video['snippet'])
+                full_video_data = get_full_video_data(youtube, video_id, video_data)
                 if full_video_data:
                     new_videos.append(full_video_data)
 
@@ -917,6 +916,6 @@ def main():
         sys.exit(1)
     finally:
         logging.info("스크립트 실행 완료")
-
+	    
 if __name__ == "__main__":
     main()
