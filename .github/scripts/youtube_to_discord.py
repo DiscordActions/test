@@ -9,6 +9,16 @@ import isodate
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+# 사용자 정의 예외 클래스 추가
+class YouTubeAPIError(Exception):
+    pass
+
+class DatabaseError(Exception):
+    pass
+
+class DiscordWebhookError(Exception):
+    pass
+    
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -193,13 +203,20 @@ def get_full_video_data(youtube, video_id: str, snippet: Dict[str, Any]) -> Dict
             id=video_id
         ).execute()
         
+        if not video_response.get('items'):
+            logging.warning(f"비디오 정보를 찾을 수 없음: {video_id}")
+            return None
+        
         video_info = video_response['items'][0]
-        content_details = video_info['contentDetails']
-        statistics = video_info['statistics']
+        content_details = video_info.get('contentDetails', {})
+        statistics = video_info.get('statistics', {})
         live_streaming_details = video_info.get('liveStreamingDetails', {})
         
         return create_video_data(youtube, video_id, video_info['snippet'], content_details, statistics, live_streaming_details)
-    except Exception as e:
+    except HttpError as e:
+        if e.resp.status == 403 and 'quotaExceeded' in str(e):
+            logging.error("YouTube API 할당량 초과. 잠시 후 다시 시도하세요.")
+            raise YouTubeAPIError("YouTube API 할당량 초과")
         logging.error(f"비디오 세부 정보를 가져오는 중 오류 발생: {e}")
         raise YouTubeAPIError("비디오 세부 정보 가져오기 실패")
 
@@ -460,32 +477,41 @@ def fetch_playlist_info(youtube, playlist_id: str) -> Dict[str, str]:
     return None
 
 def process_videos(youtube):
-    videos = fetch_videos(youtube)
-    new_videos = []
-    playlist_info = None
+    try:
+        videos = fetch_videos(youtube)
+        new_videos = []
+        playlist_info = None
 
-    if YOUTUBE_MODE == 'playlists':
-        playlist_info = fetch_playlist_info(youtube, YOUTUBE_PLAYLIST_ID)
+        if YOUTUBE_MODE == 'playlists':
+            playlist_info = fetch_playlist_info(youtube, YOUTUBE_PLAYLIST_ID)
 
-    since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE)
+        since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE)
 
-    for video_id, snippet in videos:
-        if not is_video_exists(video_id):
-            video_data = get_full_video_data(youtube, video_id, snippet)
-            
-            if is_within_date_range(video_data['published_at'], since_date, until_date, past_date) and \
-               apply_advanced_filter(video_data['title'], video_data['description'], ADVANCED_FILTER_YOUTUBE):
-                new_videos.append(video_data)
+        for video_id, snippet in videos:
+            if not is_video_exists(video_id):
+                try:
+                    video_data = get_full_video_data(youtube, video_id, snippet)
+                    if video_data and is_within_date_range(video_data['published_at'], since_date, until_date, past_date) and \
+                    apply_advanced_filter(video_data['title'], video_data['description'], ADVANCED_FILTER_YOUTUBE):
+                        new_videos.append(video_data)
+                except YouTubeAPIError as e:
+                    logging.error(f"비디오 {video_id} 처리 중 오류 발생: {e}")
+                    continue
 
-    new_videos.sort(key=lambda x: x['published_at'])
+        new_videos.sort(key=lambda x: x['published_at'])
 
-    for video in new_videos:
-        save_video(video)
-        send_to_discord(video)
-        if YOUTUBE_DETAILVIEW:
-            send_to_discord(video, is_detail=True)
+        for video in new_videos:
+            try:
+                save_video(video)
+                send_to_discord(video)
+                if YOUTUBE_DETAILVIEW:
+                    send_to_discord(video, is_detail=True)
+            except (DatabaseError, DiscordWebhookError) as e:
+                logging.error(f"비디오 {video['video_id']} 저장 또는 전송 중 오류 발생: {e}")
 
-    logging.info(f"총 {len(new_videos)}개의 새 비디오를 처리했습니다.")
+        logging.info(f"총 {len(new_videos)}개의 새 비디오를 처리했습니다.")
+    except Exception as e:
+        logging.error(f"비디오 처리 중 예기치 않은 오류 발생: {e}")
 
 def log_execution_info():
     logging.info(f"YOUTUBE_MODE: {YOUTUBE_MODE}")
@@ -506,6 +532,8 @@ def main():
         youtube = build_youtube_client()
         process_videos(youtube)
         log_execution_info()
+    except YouTubeAPIError as e:
+        logging.error(f"YouTube API 오류: {e}")
     except Exception as e:
         logging.error(f"실행 중 오류 발생: {e}", exc_info=True)
     finally:
