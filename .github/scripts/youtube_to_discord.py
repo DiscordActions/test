@@ -879,9 +879,10 @@ def main():
         existing_video_ids = get_existing_video_ids()
         new_videos = []
 
-        for video_id, video_data in videos:
+        for video in videos:
+            video_id = video['id'] if isinstance(video['id'], str) else video['id']['videoId']
             if video_id not in existing_video_ids:
-                full_video_data = get_full_video_data(youtube, video_id, video_data)
+                full_video_data = get_full_video_data(youtube, video_id, video['snippet'])
                 if full_video_data:
                     new_videos.append(full_video_data)
 
@@ -892,7 +893,7 @@ def main():
         
         for video in new_videos:
             save_video(video)
-            logging.info(f"Sending to Discord: {video}")  # 여기서 video 데이터 출력
+            logging.info(f"Sending to Discord: {video}")
             send_to_discord(create_embed_message(video, youtube), is_embed=True, is_detail=True)
 
         log_execution_info()
