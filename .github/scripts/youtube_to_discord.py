@@ -689,6 +689,12 @@ def post_detailed_view(video: Dict[str, Any], youtube) -> None:
 
 def create_embed_message(video: Dict[str, Any], youtube) -> Dict[str, Any]:
     """임베드 메시지를 생성합니다."""
+	
+    # video_url 필드가 존재하는지 확인
+    if 'video_url' not in video:
+        logging.error(f"'video_url' 필드가 누락되었습니다: {video}")
+        raise KeyError("'video_url' 필드가 누락되었습니다.")
+	
     channel_thumbnail = get_channel_thumbnail(youtube, video['channel_id'])
     
     tags = video['tags'].split(',') if video['tags'] else []
@@ -824,7 +830,7 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
     return new_videos
     
 def create_video_data(youtube, video_id: str, snippet: Dict[str, Any], content_details: Dict[str, Any], live_streaming_details: Dict[str, Any]) -> Dict[str, Any]:
-    return {
+    video_data = {
         'published_at': snippet['publishedAt'],
         'channel_title': snippet['channelTitle'],
         'channel_id': snippet['channelId'],
@@ -842,6 +848,9 @@ def create_video_data(youtube, video_id: str, snippet: Dict[str, Any], content_d
         'caption': content_details.get('caption', ''),
         'source': YOUTUBE_MODE
     }
+    
+    logging.info(f"Created video data: {video_data}")
+    return video_data
 
 def log_execution_info():
     logging.info(f"YOUTUBE_MODE: {YOUTUBE_MODE}")
