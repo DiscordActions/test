@@ -814,15 +814,15 @@ def main():
                     new_videos.append(full_video_data)
 
         # 오래된 순서부터 최신순으로 정렬
-        new_videos.sort(key=lambda x: x['publishedAt'])
+        new_videos.sort(key=lambda x: x['published_at'])
         
         logging.info(f"처리할 새로운 비디오 수: {len(new_videos)}")
         
-	for video in new_videos:
-	    save_video(video)
-	    send_to_discord(create_discord_message(video, convert_to_local_time(video['published_at']), f"https://youtu.be/{video['video_id']}"))
-	    if YOUTUBE_DETAILVIEW:
-	        send_to_discord(create_embed_message(video, youtube), is_embed=True, is_detail=True)
+        for video in new_videos:
+            save_video(video)
+            send_to_discord(create_discord_message(video, convert_to_local_time(video['published_at']), f"https://youtu.be/{video['video_id']}"))
+            if YOUTUBE_DETAILVIEW:
+                send_to_discord(create_embed_message(video, youtube), is_embed=True, is_detail=True)
 
         log_execution_info()
         
