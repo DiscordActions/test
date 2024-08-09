@@ -245,20 +245,47 @@ def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str
     return [(item['snippet']['resourceId']['videoId'], item['snippet']) for item in playlist_items]
 
 def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[str, Any]]]:
-    try:
-        response = youtube.search().list(
-            q=search_keyword,
-            order='date',
-            type='video',
-            part='snippet,id',
-            maxResults=50
-        ).execute()
+    video_items = []
+    next_page_token = None
+    max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+    api_calls = 0
+    max_api_calls = 5  # API 호출 횟수 제한
 
-        video_items = [(item['id']['videoId'], item['snippet']) for item in response.get('items', [])]
-        return video_items
-    except HttpError as e:
-        logging.error(f"검색 결과를 가져오는 중 오류 발생: {e}")
-        raise YouTubeAPIError("검색 비디오 정보 가져오기 실패")
+    logging.info(f"검색 키워드: {search_keyword}로 최대 {max_results}개의 비디오를 가져오기 시작")
+
+    while len(video_items) < max_results and api_calls < max_api_calls:
+        try:
+            response = youtube.search().list(
+                q=search_keyword,
+                type='video',
+                part='snippet,id',
+                maxResults=min(50, max_results - len(video_items)),
+                pageToken=next_page_token,
+                order='date'
+            ).execute()
+
+            for item in response.get('items', []):
+                video_id = item['id']['videoId']
+                snippet = item['snippet']
+                video_items.append((video_id, snippet))
+
+                if len(video_items) >= max_results:
+                    break
+
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token:
+                break
+
+            api_calls += 1
+
+        except HttpError as e:
+            logging.error(f"검색 결과를 가져오는 중 오류 발생: {e}")
+            if e.resp.status == 403 and 'quotaExceeded' in str(e):
+                logging.error("YouTube API 할당량 초과. 잠시 후 다시 시도하세요.")
+            raise YouTubeAPIError("검색 비디오 정보 가져오기 실패")
+
+    logging.info(f"총 {len(video_items)}개의 검색 결과를 가져왔습니다. API 호출 횟수: {api_calls}")
+    return video_items
 
 def sort_playlist_items(playlist_items: List[Tuple[str, Dict[str, Any]]]) -> List[Tuple[str, Dict[str, Any]]]:
     def get_published_at(item):
