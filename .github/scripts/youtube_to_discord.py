@@ -1,12 +1,11 @@
 import os
 import re
-import sys
 import logging
 import sqlite3
+import sys
 from typing import List, Dict, Any, Tuple, Set
 from datetime import datetime, timezone, timedelta
 import time
-
 
 import requests
 import isodate
@@ -321,6 +320,27 @@ def get_existing_video_ids() -> Set[str]:
         c = conn.cursor()
         c.execute("SELECT video_id FROM videos")
         return set(row[0] for row in c.fetchall())
+
+def save_video(video: Dict[str, Any]):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute('''
+                INSERT OR REPLACE INTO videos 
+                (video_id, channel_id, channel_title, title, description, published_at, 
+                 thumbnail_url, category_id, category_name, duration, tags, 
+                 live_broadcast_content, scheduled_start_time, caption, 
+                 view_count, like_count, comment_count, source)
+                VALUES 
+                (:video_id, :channel_id, :channel_title, :title, :description, :published_at,
+                 :thumbnail_url, :category_id, :category_name, :duration, :tags,
+                 :live_broadcast_content, :scheduled_start_time, :caption,
+                 :view_count, :like_count, :comment_count, :source)
+            ''', video)
+        logging.info(f"비디오 저장됨: {video['video_id']}")
+    except sqlite3.Error as e:
+        logging.error(f"데이터베이스 저장 중 오류 발생: {e}")
+        raise DatabaseError("비디오 정보 저장 실패")
 
 def get_channel_thumbnail(youtube, channel_id: str) -> str:
     """채널 썸네일을 가져옵니다."""
