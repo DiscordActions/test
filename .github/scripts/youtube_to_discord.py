@@ -798,7 +798,7 @@ def get_source_text_english(video: Dict[str, Any], playlist_info: Dict[str, str]
         else:
             return f"`{video['channel_title']} - YouTube`\n"
     elif YOUTUBE_MODE == 'search':
-        return f"`🔎 {YOUTUBE_SEARCH_KEYWORD} - YouTube Search Result`\n\n`{video['channel_title']} - YouTube`\n\n"
+        return f"`🔎 {YOUTUBE_SEARCH_KEYWORD} - YouTube Search Result`\n\n`{video['channel_title']} - YouTube`\n"
     else:
         logging.warning(f"Unknown YOUTUBE_MODE: {YOUTUBE_MODE}")
         return f"`{video['channel_title']} - YouTube`\n"
