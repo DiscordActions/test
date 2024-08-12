@@ -23,6 +23,7 @@ YOUTUBE_CHANNEL_ID = os.getenv('YOUTUBE_CHANNEL_ID')
 YOUTUBE_PLAYLIST_ID = os.getenv('YOUTUBE_PLAYLIST_ID')
 YOUTUBE_PLAYLIST_SORT = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
 YOUTUBE_SEARCH_KEYWORD = os.getenv('YOUTUBE_SEARCH_KEYWORD')
+YOUTUBE_SEARCH_ORDER: ${{ secrets.YOUTUBE_SEARCH_ORDER }}
 INIT_MAX_RESULTS = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '50')
 MAX_RESULTS = int(os.getenv('YOUTUBE_MAX_RESULTS') or '10')
 INITIALIZE_MODE_YOUTUBE = os.getenv('INITIALIZE_MODE_YOUTUBE', 'false').lower() == 'true'
@@ -74,10 +75,19 @@ def check_env_variables() -> None:
                 raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
             
             playlist_sort = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
-            if playlist_sort and playlist_sort not in ['position', 'position_reverse', 'date_newest', 'date_oldest']:
-                raise ValueError("YOUTUBE_PLAYLIST_SORT가 설정된 경우, 'position', 'position_reverse', 'date_newest', 'date_oldest' 중 하나여야 합니다.")
+            if playlist_sort not in ['position', 'position_reverse', 'date_newest', 'date_oldest']:
+                raise ValueError("YOUTUBE_PLAYLIST_SORT는 'position', 'position_reverse', 'date_newest', 'date_oldest' 중 하나여야 합니다.")
         elif mode == 'search' and not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
             raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
+
+        # YOUTUBE_SEARCH_ORDER 검증 추가
+        search_order = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
+        valid_search_orders = ['relevance', 'date', 'viewcount', 'rating']
+        if search_order not in valid_search_orders:
+            logging.warning(f"YOUTUBE_SEARCH_ORDER 환경 변수 '{search_order}'는 올바르지 않음. 기본값 'date'로 설정.")
+            os.environ['YOUTUBE_SEARCH_ORDER'] = 'date'
+        
+        logging.info(f"YOUTUBE_SEARCH_ORDER: {os.getenv('YOUTUBE_SEARCH_ORDER')}")
 
         for var in ['YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS']:
             value = os.getenv(var)
@@ -93,12 +103,12 @@ def check_env_variables() -> None:
         language = os.getenv('LANGUAGE_YOUTUBE', 'English')
         if language not in ['English', 'Korean']:
             logging.warning(f"LANGUAGE_YOUTUBE 환경 변수 '{language}'는 올바르지 않음. 기본값 'English'로 설정.")
-            language = 'English'
+            os.environ['LANGUAGE_YOUTUBE'] = 'English'
 
         logging.info("환경 변수 검증 완료")
         
         safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
-                     'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW']
+                     'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW', 'YOUTUBE_SEARCH_ORDER']
         for var in safe_vars:
             logging.info(f"{var}: {os.getenv(var)}")
 
@@ -492,8 +502,10 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
     api_calls = 0
     max_api_calls = 5  # API 호출 횟수 제한
+    search_order = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
 
     logging.info(f"검색 키워드: {search_keyword}로 최대 {max_results}개의 비디오를 가져오기 시작")
+    logging.info(f"검색 순서: {search_order}")
 
     while len(video_items) < max_results and api_calls < max_api_calls:
         try:
@@ -503,7 +515,7 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
                 part='snippet,id',
                 maxResults=min(50, max_results - len(video_items)),
                 pageToken=next_page_token,
-                order='date'
+                order=search_order
             ).execute()
 
             for item in response.get('items', []):
@@ -527,6 +539,7 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
             raise YouTubeAPIError("검색 비디오 정보 가져오기 실패")
 
     logging.info(f"총 {len(video_items)}개의 검색 결과를 가져왔습니다. API 호출 횟수: {api_calls}")
+    
     return video_items
 	
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry=retry_if_exception_type(HttpError))
