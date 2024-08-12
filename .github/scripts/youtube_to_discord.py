@@ -76,7 +76,6 @@ def check_env_variables() -> None:
             playlist_sort = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
             if playlist_sort not in ['position', 'position_reverse', 'date_newest', 'date_oldest']:
                 raise ValueError("YOUTUBE_PLAYLIST_SORT는 'position', 'position_reverse', 'date_newest', 'date_oldest' 중 하나여야 합니다.")
-		            
         elif mode == 'search' and not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
             raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
 
