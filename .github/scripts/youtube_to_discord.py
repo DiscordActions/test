@@ -777,31 +777,31 @@ def create_english_message(video: Dict[str, Any], formatted_published_at: str, v
 
 def get_source_text_korean(video: Dict[str, Any], playlist_info: Dict[str, str] = None) -> str:
     if YOUTUBE_MODE == 'channels':
-        return f"`{video['channel_title']} - YouTube`\n"
+        return f"`{video['channel_title']} - YouTube 채널`\n"
     elif YOUTUBE_MODE == 'playlists':
         if playlist_info:
-            return f"`📃 {playlist_info['title']} - YouTube 재생목록 by {playlist_info['channel_title']}`\n\n`{video['channel_title']} - YouTube`\n"
+            return f"`📃 {playlist_info['title']} - YouTube 재생목록 by {playlist_info['channel_title']}`\n\n`{video['channel_title']} - YouTube 채널`\n"
         else:
-            return f"`{video['channel_title']} - YouTube`\n"
+            return f"`{video['channel_title']} - YouTube 채널`\n"
     elif YOUTUBE_MODE == 'search':
-        return f"`🔎 {YOUTUBE_SEARCH_KEYWORD} - YouTube 검색 결과`\n\n`{video['channel_title']} - YouTube`\n\n"
+        return f"`🔎 {YOUTUBE_SEARCH_KEYWORD} - YouTube 검색 결과`\n\n`{video['channel_title']} - YouTube 채널`\n"
     else:
         logging.warning(f"알 수 없는 YOUTUBE_MODE: {YOUTUBE_MODE}")
-        return f"`{video['channel_title']} - YouTube`\n"
+        return f"`{video['channel_title']} - YouTube 채널`\n"
 
 def get_source_text_english(video: Dict[str, Any], playlist_info: Dict[str, str] = None) -> str:
     if YOUTUBE_MODE == 'channels':
         return f"`{video['channel_title']} - YouTube Channel`\n"
     elif YOUTUBE_MODE == 'playlists':
         if playlist_info:
-            return f"`📃 {playlist_info['title']} - YouTube Playlist by {playlist_info['channel_title']}`\n\n`{video['channel_title']} - YouTube`\n"
+            return f"`📃 {playlist_info['title']} - YouTube Playlist by {playlist_info['channel_title']}`\n\n`{video['channel_title']} - YouTube Channel`\n"
         else:
-            return f"`{video['channel_title']} - YouTube`\n"
+            return f"`{video['channel_title']} - YouTube Channel`\n"
     elif YOUTUBE_MODE == 'search':
-        return f"`🔎 {YOUTUBE_SEARCH_KEYWORD} - YouTube Search Result`\n\n`{video['channel_title']} - YouTube`\n"
+        return f"`🔎 {YOUTUBE_SEARCH_KEYWORD} - YouTube Search Result`\n\n`{video['channel_title']} - YouTube Channel`\n"
     else:
         logging.warning(f"Unknown YOUTUBE_MODE: {YOUTUBE_MODE}")
-        return f"`{video['channel_title']} - YouTube`\n"
+        return f"`{video['channel_title']} - YouTube Channel`\n"
 
 def create_embed_message(video: Dict[str, Any], youtube) -> Dict[str, Any]:
     """임베드 메시지를 생성합니다."""
