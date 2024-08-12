@@ -463,6 +463,25 @@ def fetch_playlist_videos(youtube, playlist_id: str) -> Tuple[List[Tuple[str, Di
         logging.error(f"재생목록 정보를 가져오는 중 오류 발생: {e}")
         raise YouTubeAPIError("재생목록 비디오 정보 가져오기 실패")
 
+def sort_playlist_items(playlist_items: List[Tuple[str, Dict[str, Any]]]) -> List[Tuple[str, Dict[str, Any]]]:
+    def get_published_at(item):
+        return item[1].get('publishedAt') or item[1]['snippet'].get('publishedAt') or ''
+
+    def get_position(item):
+        return int(item[1]['snippet'].get('position', 0))
+
+    if YOUTUBE_PLAYLIST_SORT == 'position_reverse':
+        return sorted(playlist_items, key=get_position, reverse=True)
+    elif YOUTUBE_PLAYLIST_SORT == 'date_newest':
+        return sorted(playlist_items, key=get_published_at, reverse=True)
+    elif YOUTUBE_PLAYLIST_SORT == 'date_oldest':
+        return sorted(playlist_items, key=get_published_at)
+    else:  # 'position' (default)
+        return sorted(playlist_items, key=get_position)
+
+    logging.info(f"재생목록 정렬 완료: {YOUTUBE_PLAYLIST_SORT} 모드, {len(playlist_items)}개 항목")
+    return playlist_items
+
 def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[str, Any]]]:
     video_items = []
     next_page_token = None
@@ -505,25 +524,6 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
 
     logging.info(f"총 {len(video_items)}개의 검색 결과를 가져왔습니다. API 호출 횟수: {api_calls}")
     return video_items
-
-def sort_playlist_items(playlist_items: List[Tuple[str, Dict[str, Any]]]) -> List[Tuple[str, Dict[str, Any]]]:
-    def get_published_at(item):
-        return item[1].get('publishedAt') or item[1]['snippet'].get('publishedAt') or ''
-
-    def get_position(item):
-        return int(item[1]['snippet'].get('position', 0))
-
-    if YOUTUBE_PLAYLIST_SORT == 'position_reverse':
-        return sorted(playlist_items, key=get_position, reverse=True)
-    elif YOUTUBE_PLAYLIST_SORT == 'date_newest':
-        return sorted(playlist_items, key=get_published_at, reverse=True)
-    elif YOUTUBE_PLAYLIST_SORT == 'date_oldest':
-        return sorted(playlist_items, key=get_published_at)
-    else:  # 'position' (default)
-        return sorted(playlist_items, key=get_position)
-
-    logging.info(f"재생목록 정렬 완료: {YOUTUBE_PLAYLIST_SORT} 모드, {len(playlist_items)}개 항목")
-    return playlist_items
 	
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry=retry_if_exception_type(HttpError))
 def get_full_video_data(youtube, video_id: str, basic_info: Dict[str, Any]) -> Dict[str, Any]:
