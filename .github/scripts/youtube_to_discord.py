@@ -448,12 +448,14 @@ def fetch_playlist_videos(youtube, playlist_id: str) -> Tuple[List[Tuple[str, Di
             for item in playlist_response['items']:
                 if item['status']['privacyStatus'] != 'private':
                     video_id = item['contentDetails']['videoId']
-                    snippet = item['snippet']
-                    playlist_items.append((video_id, snippet))
+                    playlist_items.append((video_id, item))  # 전체 item을 저장
             
             next_page_token = playlist_response.get('nextPageToken')
             if not next_page_token or len(playlist_items) >= max_results:
                 break
+
+        # 로깅 추가
+        logging.info(f"Fetched playlist items: {playlist_items[:2]}")  # 처음 2개 항목만 로깅
 
         playlist_items = sort_playlist_items(playlist_items[:max_results])
         
@@ -462,13 +464,15 @@ def fetch_playlist_videos(youtube, playlist_id: str) -> Tuple[List[Tuple[str, Di
     except HttpError as e:
         logging.error(f"재생목록 정보를 가져오는 중 오류 발생: {e}")
         raise YouTubeAPIError("재생목록 비디오 정보 가져오기 실패")
-
+	    
 def sort_playlist_items(playlist_items: List[Tuple[str, Dict[str, Any]]]) -> List[Tuple[str, Dict[str, Any]]]:
     def get_published_at(item):
-        return item[1].get('publishedAt') or item[1]['snippet'].get('publishedAt') or ''
+        snippet = item[1].get('snippet', {})
+        return snippet.get('publishedAt') or snippet.get('publishTime') or ''
 
     def get_position(item):
-        return int(item[1]['snippet'].get('position', 0))
+        snippet = item[1].get('snippet', {})
+        return int(snippet.get('position', 0))
 
     if YOUTUBE_PLAYLIST_SORT == 'position_reverse':
         return sorted(playlist_items, key=get_position, reverse=True)
@@ -481,7 +485,7 @@ def sort_playlist_items(playlist_items: List[Tuple[str, Dict[str, Any]]]) -> Lis
 
     logging.info(f"재생목록 정렬 완료: {YOUTUBE_PLAYLIST_SORT} 모드, {len(playlist_items)}개 항목")
     return playlist_items
-
+	
 def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[str, Any]]]:
     video_items = []
     next_page_token = None
